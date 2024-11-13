@@ -1,0 +1,3 @@
+#+title: XXD
+
+An implementation of [[https://manpage.me/?q=xxd][xxd]] in Guile Scheme.
