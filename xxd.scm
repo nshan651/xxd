@@ -2,6 +2,8 @@
 !#
 
 (use-modules (ice-9 format)
+	     ;; https://www.gnu.org/software/guile/manual/guile.html#The-_0028ice_002d9-getopt_002dlong_0029-Module
+	     (ice-9 getopt-long)
 	     (rnrs io ports))
 
 (define (bytes->hexlist bytes)
@@ -64,9 +66,45 @@
      chars
      "\n")))
 
+(define option-spec
+  '((version (single-char #\v) (value #f))
+    (help (single-char #\h) (value #f))
+    (reverse (single-char #\r) (value #f))))
+
+(define (print-usage)
+  "Print the help options."
+     (format #t "~{~a~%~}"
+             '("Usage:"
+	       "       xxd [options] [infile [outfile]]"
+               "or"
+               "        xxd -r [infile [outfile]]"
+               "Options:"
+               "  -h, --help     print this help message and exit."
+               "  -v, --version  print the version number and exit."
+               "  -r, --reverse  reverse operation: convert (or patch) hexdump into binary.")))
+
+(define (parse-args args)
+  "Collect cli args."
+  (let* ((options (getopt-long (command-line) option-spec))
+	 (help-wanted (option-ref options 'help #f))
+	 (version-wanted (option-ref options 'version #f))
+	 (reverse-operation (option-ref options 'reverse #f))
+	 (val (option-ref options '() '())))
+    (cond
+     (help-wanted
+      (print-usage)
+      (exit 0))
+     (version-wanted
+      (display "Version 1.0.0\n")
+      (exit 0))
+     (reverse-operation
+      (display "REVERSE")
+      (exit 0))
+     (else val))))
+
 (define (main)
   "Main program entrypoint."
-  (let* ((args (command-line))
+  (let* ((args (parse-args (command-line)))
 	 (port (if (> (length args) 1)
 		   (open-input-file (list-ref args 1))
 		   (current-input-port))))
