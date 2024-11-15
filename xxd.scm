@@ -2,8 +2,10 @@
 !#
 
 (use-modules (ice-9 format)
-	     ;; https://www.gnu.org/software/guile/manual/guile.html#The-_0028ice_002d9-getopt_002dlong_0029-Module
 	     (ice-9 getopt-long)
+	     (ice-9 rdelim)
+	     (ice-9 regex)
+	     (srfi srfi-1)
 	     (rnrs io ports))
 
 (define (bytes->hexlist bytes)
@@ -102,15 +104,56 @@
       (exit 0))
      (else val))))
 
+(define (hex-char->integer c)
+  (let ((n (char->integer c)))
+    (cond
+     ((and (>= n (char->integer #\0))
+           (<= n (char->integer #\9)))
+      (- n (char->integer #\0)))
+     ((and (>= n (char->integer #\a))
+           (<= n (char->integer #\f)))
+      (+ 10 (- n (char->integer #\a))))
+     ((and (>= n (char->integer #\A))
+           (<= n (char->integer #\F)))
+      (+ 10 (- n (char->integer #\A))))
+     (else (error "Invalid hex character" c)))))
+
+(define (hex-pair->char hex-str)
+  (integer->char
+   (+ (* 16 (hex-char->integer (string-ref hex-str 0)))
+      (hex-char->integer (string-ref hex-str 1)))))
+
+(define (split-into-pairs str)
+  (let loop ((chars (string->list str))
+             (pairs '()))
+    (if (< (length chars) 2)
+        (reverse pairs)
+        (loop (cddr chars)
+              (cons (list->string (take chars 2)) pairs)))))
+
+(define (xxd-reverse port)
+  (let* ((line (get-string-all port))
+	 (match (string-match "^[0-9a-fA-F]+:\\s+([0-9a-fA-F ]+)" line))
+         (hex-part (if match
+                      (match:substring match 1)
+                      (error "Invalid hex dump format" line))))
+    (let* ((hex-str (string-filter (lambda (c) (not (char=? c #\space))) hex-part))
+           (hex-pairs (split-into-pairs hex-str)))
+      (string-concatenate
+       (map (lambda (pair)
+              (string (hex-pair->char pair)))
+            hex-pairs)))))
+
 (define (main)
   "Main program entrypoint."
   (let* ((args (parse-args (command-line)))
 	 (port (if (> (length args) 1)
-		   (open-input-file (list-ref args 1))
+		   (open-input-file (car args))
 		   (current-input-port))))
     (let loop ((offset 0))
       (unless (eof-object? (peek-char port))
-	(display (xxd port offset))
+	;; (display (xxd port offset))
+	(display (xxd-reverse port))
 	(loop (+ offset 16))))))
 
 (main)
